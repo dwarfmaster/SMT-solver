@@ -39,6 +39,7 @@ class SMT {
         /* View all clauses in one go */
         class ClauseView {
             public:
+                ClauseView();
                 ClauseView(SMT* smt);
 
                 void next();
@@ -65,6 +66,8 @@ class SMT {
         std::vector<double> m_literalsScores;
         std::vector<bool> m_literalAssignation;
         std::vector<bool> m_literalFree;
+        std::vector<ClauseView> m_assignationSource;
+        std::vector<bool> m_literalPropagated;
         struct Assignation {
             Literal assigned;
             bool first;
@@ -101,5 +104,6 @@ class SMT {
         bool can_assign(Literal l);
         void step(Literal asgn);
         void unfold(bool reentrant = false);
+        size_t learn_clause(ClauseView clause);
 };
 

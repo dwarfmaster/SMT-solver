@@ -20,6 +20,8 @@ void SMT::resizeToLiteral(long lit) {
 
     m_literalsScores.resize(lit + 1);
     m_literalFree.resize(lit + 1);
+    m_literalPropagated.resize(lit + 1);
+    m_assignationSource.resize(lit + 1);
     for(long toadd = m_literalAssignation.size(); toadd <= lit; ++toadd) {
         m_literalsScoresQueue.insert(std::make_pair(1, toadd));
         m_literalsScores[toadd] = 1;
@@ -72,6 +74,8 @@ SMT::ClauseView SMT::propagate(Literal l, Assignation& ass) {
                     watched.first = *res;
                 } else if(can_assign(watched.second)) {
                     ass.propagated.push_back(watched.second);
+                    m_literalPropagated[watched.second] = true;
+                    m_assignationSource[watched.second] = view;
                     ClauseView ret = propagate(watched.second, ass);
                     if(!ret.ended()) return ret;
                 } else return view;
@@ -87,6 +91,8 @@ SMT::ClauseView SMT::propagate(Literal l, Assignation& ass) {
                     watched.second = *res;
                 } else if(can_assign(watched.first)) {
                     ass.propagated.push_back(watched.first);
+                    m_literalPropagated[watched.first] = true;
+                    m_assignationSource[watched.first] = view;
                     ClauseView ret = propagate(watched.first, ass);
                     if(!ret.ended()) return ret;
                 } else return view;
@@ -128,6 +134,10 @@ bool SMT::can_assign(Literal l) {
         || (lit_val(l) == LIT_FALSE && !lit_sgn(l))
         || (lit_val(l) == LIT_UNSET);
 }
+                
+SMT::ClauseView::ClauseView()
+    : m_learned(true), m_id((size_t)-1), m_smt(nullptr)
+    { }
 
 SMT::ClauseView::ClauseView(SMT* smt)
     : m_learned(false), m_id(0), m_smt(smt)
@@ -142,7 +152,7 @@ void SMT::ClauseView::next() {
 }
 
 bool SMT::ClauseView::ended() {
-    return m_learned && m_id == m_smt->m_learnedClauses.size();
+    return m_learned && m_id >= m_smt->m_learnedClauses.size();
 }
 
 SMT::LitIterator SMT::ClauseView::begin() const {
@@ -178,7 +188,7 @@ void SMT::step(Literal asgn) {
 
     ass.success = clause.ended();
     ass.learned = (size_t)-1;
-    /* TODO in case of conflict learn clause and VSIDS update */
+    if(!ass.success) ass.learned = learn_clause(clause);
     m_decisionStack.push_back(ass);
 
     for(auto lit : ass.propagated) {
@@ -189,6 +199,45 @@ void SMT::step(Literal asgn) {
             m_literalsScoresQueue.erase(it);
         } else break;
     }
+}
+        
+size_t SMT::learn_clause(ClauseView clause) {
+    std::set<Literal> temp(clause.begin(), clause.end());
+    std::vector<bool> seen(m_literalsScores.size(), false);
+    InternalClause learned;
+    learned.start = m_learnedClauseContent.size();
+    learned.size = 0;
+
+    while(!temp.empty()) {
+        Literal lit = *temp.begin();
+        long l = std::abs(lit);
+        temp.erase(temp.begin());
+        if(seen[l]) continue;
+        seen[l] = true;
+        /* TODO VSIDS update */
+
+        if(!m_literalPropagated[l]) {
+            m_learnedClauseContent.push_back(lit);
+            ++learned.size;
+            continue;
+        }
+
+        ClauseView cause = m_assignationSource[l];
+        std::copy_if(cause.begin(), cause.end(),
+                std::inserter(temp, temp.begin()),
+                [&seen] (Literal l) { return !seen[std::abs(l)]; });
+    }
+
+    if(learned.size == 1) {
+        m_learnedClauseContent.pop_back();
+        return (size_t)-1;
+    }
+
+    m_learnedClauses.push_back(learned);
+    m_learnedWatched.push_back(std::make_pair(
+                *m_learnedClauseContent.rbegin(),
+                *(m_learnedClauseContent.rbegin() + 1)));
+    return m_learnedClauses.size() - 1;
 }
 
 void SMT::unfold(bool reentrant) {
