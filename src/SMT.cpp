@@ -63,28 +63,32 @@ SMT::ClauseView SMT::propagate(Literal l, Assignation& ass) {
     ++ms_propagationsSR;
 
     for(; !view.ended(); view.next()) {
-        auto watched = view.watched();
+        auto& watched = view.watched();
         if(std::abs(watched.first) == std::abs(l)) {
             if(watched.first != l) {
-                LitIterator res = lookup_nonfalse(view.begin(), view.end(), l);
-                if(res != view.end()) watched.first = *res;
-                else if(can_assign(watched.second)) {
+                LitIterator res = lookup_nonfalse(view.begin(), view.end(),
+                        l, watched.second);
+                if(res != view.end()) {
+                    watched.first = *res;
+                } else if(can_assign(watched.second)) {
                     ass.propagated.push_back(watched.second);
-                    std::cout << "Propagating " << watched.second << std::endl;
-                    propagate(watched.second, ass);
+                    ClauseView ret = propagate(watched.second, ass);
+                    if(!ret.ended()) return ret;
                 } else return view;
             }
         }
 
         if(std::abs(watched.second) == std::abs(l)
                 && lit_val(std::abs(watched.first)) != LIT_TRUE) {
-            if(watched.first != l) {
-                LitIterator res = lookup_nonfalse(view.begin(), view.end(), l);
-                if(res != view.end()) watched.second = *res;
-                else if(can_assign(watched.first)) {
+            if(watched.second != l) {
+                LitIterator res = lookup_nonfalse(view.begin(), view.end(),
+                        l, watched.first);
+                if(res != view.end()) {
+                    watched.second = *res;
+                } else if(can_assign(watched.first)) {
                     ass.propagated.push_back(watched.first);
-                    std::cout << "Propagating " << watched.first << std::endl;
-                    propagate(watched.first, ass);
+                    ClauseView ret = propagate(watched.first, ass);
+                    if(!ret.ended()) return ret;
                 } else return view;
             } else std::swap(watched.first, watched.second);
         }
@@ -93,18 +97,26 @@ SMT::ClauseView SMT::propagate(Literal l, Assignation& ass) {
     return view;
 }
 
-SMT::LitIterator SMT::lookup_nonfalse(LitIterator beg, LitIterator end, Literal lit) {
+SMT::LitIterator SMT::lookup_nonfalse(LitIterator beg, LitIterator end,
+        Literal lit1, Literal lit2) {
     for(LitIterator it = beg; it != end; ++it) {
-        if(std::abs(*it) == std::abs(lit)) continue;
+        if(std::abs(*it) == std::abs(lit1)) continue;
+        if(std::abs(*it) == std::abs(lit2)) continue;
         if(lit_val(std::abs(*it)) != LIT_FALSE) return it;
     }
     return end;
 }
 
 SMT::LitValues SMT::lit_val(Literal lit) {
+    lit = std::abs(lit);
          if(m_literalFree[lit])        return LIT_UNSET;
-    else if(m_literalAssignation[lit]) return LIT_TRUE;
-    else                               return LIT_FALSE;
+    else if(m_literalAssignation[lit]) {
+        if(lit > 0) return LIT_TRUE;
+        else        return LIT_FALSE;
+    } else {
+        if(lit > 0) return LIT_FALSE;
+        else        return LIT_TRUE;
+    }
 }
 
 bool SMT::lit_sgn(Literal lit) {
@@ -168,6 +180,16 @@ void SMT::step(Literal asgn) {
     ass.learned = (size_t)-1;
     /* TODO in case of conflict learn clause and VSIDS update */
     m_decisionStack.push_back(ass);
+
+    /* TODO optimize ? */
+    while(true) {
+        auto it = std::find_if(m_literalsScoresQueue.begin(),
+                m_literalsScoresQueue.end(),
+                [&] (auto& p) { return !m_literalFree[p.second]; });
+        if(it != m_literalsScoresQueue.end()) {
+            m_literalsScoresQueue.erase(it);
+        } else break;
+    }
 }
 
 void SMT::unfold(bool reentrant) {
@@ -205,7 +227,6 @@ start:
             }
 
             long lit = choose();
-            std::cout << "Choosing " << lit << std::endl;
             step(-lit); /* Default polarity : negative */
         } else {
             if(ass.learned < (size_t)-1) {
@@ -218,9 +239,6 @@ start:
 
             if(ass.first) {
                 unfold(true);
-                std::cout << std::abs(ass.assigned)
-                    << " -> " << (ass.assigned > 0 ? "0" : "1")
-                    << std::endl;
                 step(-ass.assigned);
                 m_decisionStack.back().first = false;
             } else {

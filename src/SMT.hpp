@@ -94,7 +94,8 @@ class SMT {
         ClauseView propagate(Literal l, Assignation& ass);
                                          /* Index of the clause in case of conflict
                                           * (the view has ended if no conflict) */
-        LitIterator lookup_nonfalse(LitIterator beg, LitIterator end, Literal lit);
+        LitIterator lookup_nonfalse(LitIterator beg, LitIterator end,
+                Literal lit1, Literal lit2);
         LitValues lit_val(Literal lit);
         bool lit_sgn(Literal lit);
         bool can_assign(Literal l);
