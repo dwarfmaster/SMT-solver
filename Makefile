@@ -1,6 +1,6 @@
 OBJS=objs/main.o objs/theory.o objs/SMT.o
 PROG=a.prog
-CXXFLAGS=-g
+CXXFLAGS=-g -Wall -Wextra --std=c++17
 LDFLAGS=
 CC=g++
 WRAPPER=nix-shell --pure --command
