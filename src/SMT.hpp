@@ -92,6 +92,11 @@ class SMT {
         llong ms_learnedClauses;
         llong ms_learnedClausesSR;
 
+        /* Restarts */
+        unsigned long m_lubyU;
+        unsigned long m_lubyV;
+        unsigned long m_lubyC;
+
         /* Utils */
         void resizeToLiteral(long lit);
         long choose();
@@ -107,5 +112,7 @@ class SMT {
         void unfold(bool reentrant = false);
         size_t learn_clause(ClauseView clause);
         LitValues clause_val(ClauseView clause);
+        void updateLuby();
+        void restart();
 };
 

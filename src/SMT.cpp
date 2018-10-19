@@ -11,6 +11,7 @@ SMT::SMT(Theory* theory, double alpha, double beta)
     , ms_decisions(0), ms_decisionsSR(0)
     , ms_propagations(0), ms_propagationsSR(0)
     , ms_learnedClauses(0), ms_learnedClausesSR(0)
+    , m_lubyU(1), m_lubyV(1), m_lubyC(64)
 {
     m_literalAssignation.resize(1);
 }
@@ -275,7 +276,7 @@ bool SMT::solve() {
         if(ass.success) {
 start:
             if(m_literalsScoresQueue.empty()) {
-                /* TODO use theory */
+                /* TODO use theory, and if it fails update ms_badModels */
                 for(size_t i = 1; i < m_literalAssignation.size(); ++i) {
                     std::cout << (m_literalAssignation[i] ? "+" : "-")
                         << i << " ";
@@ -287,11 +288,20 @@ start:
             long lit = choose();
             step(-lit); /* Default polarity : negative */
         } else {
+            ++ms_conflicts;
+            ++ms_conflictsSR;
+
             if(ass.learned < (size_t)-1) {
+                ++ms_learnedClauses;
+                ++ms_learnedClausesSR;
                 ClauseView cl(this, true, ass.learned);
                 while(clause_val(cl) == LIT_FALSE) unfold();
 
-                /* TODO restart */
+                if(ms_conflictsSR >= m_lubyC * m_lubyV) {
+                    restart();
+                    updateLuby();
+                    goto start;
+                }
                 m_decisionStack.back().success = false;
                 continue;
             }
@@ -316,5 +326,34 @@ SMT::LitValues SMT::clause_val(ClauseView clause) {
         else if(nval == LIT_UNSET) result = LIT_UNSET;
     }
     return result;
+}
+
+void SMT::updateLuby() {
+    if((m_lubyU & -m_lubyU) == m_lubyV) {
+        m_lubyU = m_lubyU + 1;
+        m_lubyV = 1;
+    } else m_lubyV = 2 * m_lubyV;
+}
+
+void SMT::restart() {
+    for(auto it = m_decisionStack.begin(); it != m_decisionStack.end(); ++it) {
+        m_literalFree[std::abs(it->assigned)] = true;
+        m_literalsScoresQueue.insert(std::make_pair(
+                    m_literalsScores[std::abs(it->assigned)],
+                    std::abs(it->assigned)));
+        for(Literal lit : it->propagated) {
+            long l = std::abs(lit);
+            m_literalFree[l] = true;
+            m_literalsScoresQueue.insert(std::make_pair(m_literalsScores[l], l));
+        }
+    }
+    m_decisionStack.clear();
+
+    ms_conflictsSR = 0;
+    ms_badModelsSR = 0;
+    ms_decisionsSR = 0;
+    ms_propagationsSR = 0;
+    ms_learnedClausesSR = 0;
+    ++ms_restarts;
 }
 
