@@ -181,11 +181,10 @@ void SMT::step(Literal asgn) {
     /* TODO in case of conflict learn clause and VSIDS update */
     m_decisionStack.push_back(ass);
 
-    /* TODO optimize ? */
-    while(true) {
+    for(auto lit : ass.propagated) {
         auto it = std::find_if(m_literalsScoresQueue.begin(),
                 m_literalsScoresQueue.end(),
-                [&] (auto& p) { return !m_literalFree[p.second]; });
+                [&] (auto& p) { return p.second == std::abs(lit); });
         if(it != m_literalsScoresQueue.end()) {
             m_literalsScoresQueue.erase(it);
         } else break;
@@ -223,6 +222,11 @@ bool SMT::solve() {
 start:
             if(m_literalsScoresQueue.empty()) {
                 /* TODO use theory */
+                for(size_t i = 1; i < m_literalAssignation.size(); ++i) {
+                    std::cout << (m_literalAssignation[i] ? "+" : "-")
+                        << i << " ";
+                }
+                std::cout << std::endl;
                 return true;
             }
 
