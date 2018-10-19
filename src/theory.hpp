@@ -6,15 +6,16 @@
 
 class Theory {
     public:
-        using Theorem = size_t;
+        using Theorem = long;
         using Model   = std::vector<std::pair<bool,Theorem>>;
 
         Theory();
         virtual ~Theory();
 
         /* Theorem I/O */
-        virtual Theorem read(std::ifstream& ifs) = 0;
-        virtual void write(std::ofstream& ofs, Theorem theo) = 0;
+        virtual void read(Theorem id, std::ifstream& ifs) = 0;
+        virtual void write(std::ofstream& ofs, Theorem theo) const = 0;
+        virtual bool hasTheorem(Theorem theo) const = 0;
         virtual void remove(Theorem theo) = 0;
 
         /* Solver */
