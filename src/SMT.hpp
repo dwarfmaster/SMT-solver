@@ -41,6 +41,7 @@ class SMT {
             public:
                 ClauseView();
                 ClauseView(SMT* smt);
+                ClauseView(SMT* smt, bool learned, size_t id);
 
                 void next();
                 bool ended();
@@ -105,5 +106,6 @@ class SMT {
         void step(Literal asgn);
         void unfold(bool reentrant = false);
         size_t learn_clause(ClauseView clause);
+        LitValues clause_val(ClauseView clause);
 };
 

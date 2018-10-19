@@ -143,6 +143,10 @@ SMT::ClauseView::ClauseView(SMT* smt)
     : m_learned(false), m_id(0), m_smt(smt)
     { }
 
+SMT::ClauseView::ClauseView(SMT* smt, bool learned, size_t id)
+    : m_learned(learned), m_id(id), m_smt(smt)
+    { }
+
 void SMT::ClauseView::next() {
     ++m_id;
     if(!m_learned && m_id >= m_smt->m_clauses.size()) {
@@ -283,9 +287,10 @@ start:
             step(-lit); /* Default polarity : negative */
         } else {
             if(ass.learned < (size_t)-1) {
-                /* TODO backjump */
-                /* TODO maybe restart */
-                unfold(); /* backtrack */
+                ClauseView cl(this, true, ass.learned);
+                while(clause_val(cl) == LIT_FALSE) unfold();
+
+                /* TODO restart */
                 m_decisionStack.back().success = false;
                 continue;
             }
@@ -300,5 +305,15 @@ start:
             }
         }
     }
+}
+
+SMT::LitValues SMT::clause_val(ClauseView clause) {
+    LitValues result = LIT_FALSE;
+    for(auto it = clause.begin(); it != clause.end(); ++it) {
+        LitValues nval = lit_val(*it);
+        if(nval == LIT_TRUE) return LIT_TRUE;
+        else if(nval == LIT_UNSET) result = LIT_UNSET;
+    }
+    return result;
 }
 
