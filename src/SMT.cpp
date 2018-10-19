@@ -218,7 +218,7 @@ size_t SMT::learn_clause(ClauseView clause) {
         temp.erase(temp.begin());
         if(seen[l]) continue;
         seen[l] = true;
-        /* TODO VSIDS update */
+        m_literalsScores[l] += m_beta;
 
         if(!m_literalPropagated[l]) {
             m_learnedClauseContent.push_back(lit);
@@ -231,6 +231,7 @@ size_t SMT::learn_clause(ClauseView clause) {
                 std::inserter(temp, temp.begin()),
                 [&seen] (Literal l) { return !seen[std::abs(l)]; });
     }
+    for(size_t i = 1; i < m_literalsScores.size(); ++i) m_literalsScores[i] *= m_alpha;
 
     if(learned.size == 1) {
         m_learnedClauseContent.pop_back();
